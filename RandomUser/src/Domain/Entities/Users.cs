@@ -6,38 +6,38 @@ public sealed class User
 {
   public required string FirstName { get; init; }
   public required string LastName { get; init; }
-  public required string Gender { get; init; }
+  public required string Phone { get; init; }
   public required string Email { get; init; }
-  public required string Country { get; init; }
+  public required string City { get; init; }
 
   public string FullName => $"{FirstName} {LastName}";
 
   private User() { }
 
-  public static User Create(string firstName, string lastName, string gender, string email, string country)
+  public static User Create(string fullName, string phone, string email, string city)
   {
     // Validar datos de entrada
-    ArgumentException.ThrowIfNullOrWhiteSpace(firstName, nameof(firstName));
-    ArgumentException.ThrowIfNullOrWhiteSpace(lastName, nameof(lastName));
-    ArgumentException.ThrowIfNullOrWhiteSpace(gender, nameof(gender));
+    ArgumentException.ThrowIfNullOrWhiteSpace(fullName, nameof(fullName));
+    ArgumentException.ThrowIfNullOrWhiteSpace(phone, nameof(phone));
     ArgumentException.ThrowIfNullOrWhiteSpace(email, nameof(email));
-    ArgumentException.ThrowIfNullOrWhiteSpace(country, nameof(country));
+    ArgumentException.ThrowIfNullOrWhiteSpace(city, nameof(city));
 
+    // Como la nueva API solo tiene el nombre completo, asignamos todo a FirstName y dejamos LastName vacío
     return new User
     {
-      FirstName = firstName,
-      LastName = lastName,
-      Gender = gender,
+      FirstName = fullName,
+      LastName = string.Empty,
+      Phone = phone,
       Email = email,
-      Country = country
+      City = city
     };
   }
 
   public override string ToString() =>
     $"""
     Nombre: {FullName}
-    Género: {Gender}
+    Teléfono: {Phone}
     Email: {Email}
-    País: {Country}
+    Ciudad: {City}
     """;
 }

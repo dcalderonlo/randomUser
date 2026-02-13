@@ -25,9 +25,9 @@ public sealed class HttpUserRepository : IUserRepository, IDisposable
   {
     try
     {
-      // Obtener un usuario de la API y mapearlo a la entidad de dominio
-      var response = await _apiClient.GetRandomUserAsync(cancellationToken);
-      return MapToEntity(response.Results[0]);
+      // Obtener la lista de usuarios de la API y mapear el primero a la entidad de dominio
+      var users = await _apiClient.GetRandomUsersAsync(cancellationToken);
+      return MapToEntity(users[0]);
     }
     catch (DomainException)
     {
@@ -41,68 +41,33 @@ public sealed class HttpUserRepository : IUserRepository, IDisposable
 
   /// Obtiene múltiples usuarios aleatorios de la API con control de concurrencia
   public async Task<IReadOnlyList<User>> GetRandomUsersAsync(
-    int count, 
-    IProgress<int>? progress = null, 
+    int count,
+    IProgress<int>? progress = null,
     CancellationToken cancellationToken = default)
   {
     ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
 
+    // Obtener la lista completa de usuarios de la API
+    var apiUsers = await _apiClient.GetRandomUsersAsync(cancellationToken);
+    if (apiUsers == null || apiUsers.Count == 0)
+      throw new InvalidResponseException("La API no devolvió usuarios");
+
+    // Mapear los usuarios obtenidos a la entidad de dominio con reporte de progreso
     var users = new List<User>();
-    var tasks = new List<Task<User>>();
-    var progressTracker = new ProgressTracker();
-
-    for (int i = 0; i < count; i++)
+    int max = Math.Min(count, apiUsers.Count);
+    for (int i = 0; i < max; i++)
     {
-      var task = GetRandomUserWithProgressAsync(progress, progressTracker, count, cancellationToken);
-      tasks.Add(task);
-
-      // Limitar la concurrencia
-      if (tasks.Count >= _maxConcurrentRequests)
+      try
       {
-        var completedTask = await Task.WhenAny(tasks);
-        tasks.Remove(completedTask);
-
-        try
-        {
-          users.Add(await completedTask);
-        }
-        catch (Exception ex)
-        {
-          throw new ConnectionException("Error al obtener usuarios", ex);
-        }
+        users.Add(MapToEntity(apiUsers[i]));
+        progress?.Report(i + 1);
+      }
+      catch (Exception ex)
+      {
+        throw new ConnectionException($"Error al mapear usuario {i + 1}", ex);
       }
     }
-
-    // Esperar a que terminen todas las tareas restantes
-    var results = await Task.WhenAll(tasks);
-    // Agregar los resultados exitosos a la lista de usuarios
-    users.AddRange(results.Where(u => u is not null));
-
     return users.AsReadOnly();
-  }
-
-  // Obtiene un usuario con reporte de progreso
-  private async Task<User> GetRandomUserWithProgressAsync(
-    IProgress<int>? progress, 
-    ProgressTracker progressTracker, 
-    int total,
-    CancellationToken cancellationToken)
-  {
-    try
-    {
-      // Obtener un usuario de la API y mapearlo a la entidad de dominio
-      var user = await GetRandomUserAsync(cancellationToken);
-      progressTracker.Increment();
-      progress?.Report(progressTracker.Completed);
-      return user;
-    }
-    catch (DomainException ex)
-    {
-      // Si ocurre un error de dominio, se considera como un usuario no obtenido
-      progressTracker.Increment();
-      progress?.Report(progressTracker.Completed);
-      throw new ConnectionException($"Error al obtener usuario", ex);
-    }
   }
 
   // Clase auxiliar para rastrear el progreso de obtención de usuarios
@@ -125,21 +90,21 @@ public sealed class HttpUserRepository : IUserRepository, IDisposable
     try
     {
       // Validar que los datos necesarios estén presentes en la respuesta
-      if (string.IsNullOrWhiteSpace(result.Name.First) ||
-          string.IsNullOrWhiteSpace(result.Name.Last) ||
+      if (string.IsNullOrWhiteSpace(result.Name) ||
           string.IsNullOrWhiteSpace(result.Email) ||
-          string.IsNullOrWhiteSpace(result.Location.Country))
+          string.IsNullOrWhiteSpace(result.Phone) ||
+          result.Address is null ||
+          string.IsNullOrWhiteSpace(result.Address.City))
       {
         throw new InvalidResponseException("Datos incompletos en la respuesta de la API");
       }
 
       // Crear y retornar la entidad de dominio User a partir del DTO
       return User.Create(
-        firstName: result.Name.First,
-        lastName: result.Name.Last,
-        gender: result.Gender,
+        fullName: result.Name,
+        phone: result.Phone,
         email: result.Email,
-        country: result.Location.Country
+        city: result.Address.City
       );
     }
     catch (Exception ex)

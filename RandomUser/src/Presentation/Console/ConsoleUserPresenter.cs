@@ -29,7 +29,7 @@ public sealed class ConsoleUserPresenter : IUserPresenter
   {
     lock (_lock)
     {
-      var percentage = (current * 100) / total;
+      var percentage = current * 100 / total;
       var progressBar = GenerateProgressBar(percentage);
 
       System.Console.SetCursorPosition(0, System.Console.CursorTop);

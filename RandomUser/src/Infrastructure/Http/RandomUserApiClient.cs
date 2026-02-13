@@ -29,14 +29,14 @@ public sealed class RandomUserApiClient : IDisposable
   }
 
   // Obtiene un usuario aleatorio de la API con reintentos automáticos
-  public async Task<RandomUserApiResponse> GetRandomUserAsync(CancellationToken cancellationToken = default)
+  public async Task<List<RandomUserResult>> GetRandomUsersAsync(CancellationToken cancellationToken = default)
   {
     return await ExecuteWithRetryAsync(async () =>
     {
       // Realizar la solicitud HTTP GET a la API
       var jsonResponse = await _httpClient.GetStringAsync(_configuration.BaseUrl, cancellationToken);
       return DeserializeResponse(jsonResponse);
-    }, "Obtención de usuario");
+    }, "Obtención de usuarios");
   }
 
   // Ejecuta una operación con reintentos automáticos
@@ -77,7 +77,7 @@ public sealed class RandomUserApiClient : IDisposable
   }
 
   // Deserializa la respuesta JSON de la API
-  private static RandomUserApiResponse DeserializeResponse(string jsonResponse)
+  private static List<RandomUserResult> DeserializeResponse(string jsonResponse)
   {
     try
     {
@@ -86,12 +86,10 @@ public sealed class RandomUserApiClient : IDisposable
         PropertyNameCaseInsensitive = true
       };
 
-      // Deserializar la respuesta JSON a un objeto RandomUserApiResponse
-      var response = JsonSerializer.Deserialize<RandomUserApiResponse>(jsonResponse, options);
-      
-      if (response is null || response.Results.Count == 0)
-        throw new InvalidResponseException("La API no devolvió resultados válidos");
-
+      // Deserializar la respuesta JSON a una lista de RandomUserResult
+      var response = JsonSerializer.Deserialize<List<RandomUserResult>>(jsonResponse, options);
+      if (response is null || response.Count == 0)
+        throw new InvalidResponseException("La API no devolvió resultados válidos");
       return response;
     }
     catch (JsonException ex)
